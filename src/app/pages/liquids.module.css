@@ -1,0 +1,12 @@
+.sections {
+    margin: 10px;
+    overflow: auto;
+}
+
+.spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 80vh;
+}
