@@ -1,7 +1,7 @@
 import { Component } from '@/app/interface/IComponent';
 import { InputText } from 'primereact/inputtext';
 import { Button } from 'primereact/button';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from './calculation.module.css';
 import { RequestBody } from '@/app/api/ebullicion/route';
 import { ProgressSpinner } from 'primereact/progressspinner';
@@ -15,55 +15,67 @@ export interface CalculationProps {
 const Calculation = ({ components, setShowCalculation, setVisible }:CalculationProps) => {
 
     const { A, B, C } = components;
-    const [showProcess, setShowProccess] = useState<boolean>(false);
+    const [showProcess, setShowProcess] = useState<boolean>(false);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [pression, setPression] = useState({ value: '' });
     const [result, setResult] = useState<string | null>(null);
+    const [logs, setLogs] = useState<string[]>([]);
+    const eventSourceRef = useRef<EventSource | null>(null);
+    const logEndRef = useRef<HTMLDivElement | null>(null);
 
-    const sendForm = async () => {
+    useEffect(() => {
+        if (logEndRef.current) {
+            logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [logs]);
+
+    const sendForm = () => {
+
         if (pression.value.trim() === '') return;
-        setShowProccess(true);
-        setIsLoading(true);
+        setShowProcess(true);
 
-        const request: RequestBody = {
-            A,
-            B,
-            C,
-            P2nd: Number(pression.value)
-        };
+        setLogs([]);
 
-        try {
-            const res = await fetch('/api/ebullicion', {
-                body: JSON.stringify(request),
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-
-            const data = await res.json();
-            setResult(data.output || data.error || 'Sin respuesta');
-        } catch (err) {
-            setResult('Error al llamar al backend');
-        } finally {
-            setIsLoading(false);
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
         }
 
-    }
+
+        const url = `/api/ebullicion-real-time/stream?A=${A}&B=${B}&C=${C}&P2nd=${Number(pression.value)}`;
+        const eventSource = new EventSource(url);
+        eventSourceRef.current = eventSource;
+
+        eventSource.onmessage = (event) => {
+            const newLog = event.data;
+            setLogs((prevLogs) => [...prevLogs, newLog]);
+
+            if (newLog.includes('MATLAB finalizó')) {
+                setIsLoading(false);
+                eventSource.close();
+            }
+        };
+
+
+        eventSource.onerror = (error) => {
+            setLogs((prevLogs) => [...prevLogs, '[Error en SSE]']);
+            eventSource.close();
+        };
+    };
 
     const goBack = () => {
         setResult(null)
-        setShowProccess(false);
+        setShowProcess(false);
         setPression({ value: '' });
         setShowCalculation(false);
         setVisible(false);
     }
-
 
     return (
         <section className={styles.section}>
             <label htmlFor="pression">Ingresa la presion que deseas averiguar</label>
             <div className={styles.data_container}>
                 <InputText
-                    keyfilter="int"
+                    keyfilter="num"
                     value={pression.value}
                     onChange={(e) => setPression({ value: e.target.value })}
                 />
@@ -76,21 +88,12 @@ const Calculation = ({ components, setShowCalculation, setVisible }:CalculationP
 
             {
                 showProcess && (
-                    <>
-                        {
-                            isLoading ? (
-                                <ProgressSpinner
-                                    style={{width: '50px', height: '50px'}}
-                                    strokeWidth="8"
-                                    fill="var(--surface-ground)" animationDuration=".5s"
-                                />
-                            ) : (
-                                <pre style={{ marginTop: 20, background: '#f5f5f5', padding: 10 }}>
-                                    {result}
-                                </pre>
-                            )
-                        }
-                    </>
+                    <div className={styles.real_time_box}>
+                        {logs.map((line, index) => (
+                            <div key={index}>{line}</div>
+                        ))}
+                        <div ref={logEndRef} />
+                    </div>
                 )
             }
 

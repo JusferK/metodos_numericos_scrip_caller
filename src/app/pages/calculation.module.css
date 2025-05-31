@@ -31,3 +31,16 @@
     justify-content: center;
     margin-top: auto;
 }
+
+.real_time_box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 55%;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 25px;
+    width: 50%;
+    place-self: center;
+    box-shadow: 3px 3px 3px 1px;
+}
